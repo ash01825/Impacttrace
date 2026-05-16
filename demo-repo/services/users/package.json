@@ -1,0 +1,8 @@
+{
+  "name": "users-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "User management service — user profiles and preferences",
+  "main": "userController.js",
+  "dependencies": {}
+}

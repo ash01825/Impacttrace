@@ -1,0 +1,8 @@
+{
+  "name": "payment-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Payment validation service — validates tokens and processes payments",
+  "main": "validateCheckoutToken.js",
+  "dependencies": {}
+}

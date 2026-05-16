@@ -1,0 +1,6 @@
+{
+  "name": "impacttrace-demo-repo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Curated demonstration monorepo for ImpactTrace — contains engineered implicit dependencies for blast radius analysis"
+}

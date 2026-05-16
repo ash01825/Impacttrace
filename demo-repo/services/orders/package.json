@@ -1,0 +1,8 @@
+{
+  "name": "orders-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Order processing service — creates and manages customer orders",
+  "main": "orderService.js",
+  "dependencies": {}
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TokenValidationSchema",
+  "description": "Shared runtime token format consumed by Auth and Payment services — the implicit contract",
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "minLength": 32
+    },
+    "userId": {
+      "type": "string",
+      "pattern": "^usr_[a-zA-Z0-9]+$"
+    },
+    "timestamp": {
+      "type": "number"
+    },
+    "signature": {
+      "type": "string",
+      "minLength": 64
+    }
+  },
+  "required": ["token", "userId", "timestamp", "signature"]
+}
