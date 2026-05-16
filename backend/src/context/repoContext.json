@@ -1,0 +1,40 @@
+{
+  "services": [
+    {
+      "name": "auth",
+      "path": "services/auth/",
+      "description": "Authentication service handling token generation, validation, middleware, and session management",
+      "exports": ["validateToken", "generateToken", "authMiddleware", "createSession", "restoreSession"],
+      "dependencies": ["shared/config/token-schema.json"]
+    },
+    {
+      "name": "orders",
+      "path": "services/orders/",
+      "description": "Order processing service handling order creation, management, and checkout workflow",
+      "exports": ["createOrder", "getOrder", "getOrdersByUser", "updateOrderStatus", "handleCreateOrder", "handleGetOrders", "processCheckout"],
+      "dependencies": ["auth/authMiddleware", "auth/tokenValidator", "payment/validateCheckoutToken"]
+    },
+    {
+      "name": "payment",
+      "path": "services/payment/",
+      "description": "Payment validation service handling token validation for checkout, payment processing, and refunds",
+      "exports": ["validateCheckoutToken", "processPayment", "processRefund"],
+      "dependencies": ["shared/config/token-schema.json"]
+    },
+    {
+      "name": "users",
+      "path": "services/users/",
+      "description": "User management service handling profiles, preferences, and session-based profile access",
+      "exports": ["handleGetProfile", "handleUpdateProfile", "getProfile", "getPreferences", "updatePreferences"],
+      "dependencies": ["auth/authMiddleware", "auth/sessionManager", "shared/config/token-schema.json"]
+    }
+  ],
+  "sharedModules": [
+    {
+      "name": "token-schema",
+      "path": "shared/config/token-schema.json",
+      "description": "Shared JSON schema defining the runtime token format consumed independently by auth/tokenValidator.js and payment/validateCheckoutToken.js. This is the critical behavioral contract.",
+      "consumedBy": ["auth/tokenValidator.js", "payment/validateCheckoutToken.js", "users/preferencesService.js"]
+    }
+  ]
+}
