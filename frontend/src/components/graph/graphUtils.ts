@@ -14,11 +14,11 @@ export function buildGraphFromPaths(
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
-    rankdir: "LR",
-    nodesep: 100,
-    ranksep: 180,
-    marginx: 40,
-    marginy: 40,
+    rankdir: "TB",
+    nodesep: 80,
+    ranksep: 120,
+    marginx: 50,
+    marginy: 50,
   });
 
   const seenNodes = new Set<string>();
@@ -39,16 +39,39 @@ export function buildGraphFromPaths(
     g.setNode(nodeId, { width: AFFECTED_NODE_WIDTH, height: AFFECTED_NODE_HEIGHT });
   }
 
-  // Add edges from closest changed file to affected node
-  for (const path of impactPaths) {
+  // Separate paths by type for hierarchical linking
+  const directs = impactPaths.filter(p => p.dependencyType === "direct_caller");
+  const transitives = impactPaths.filter(p => p.dependencyType === "transitive_caller");
+  const implicits = impactPaths.filter(p => ["behavioral_contract", "shared_state"].includes(p.dependencyType));
+
+  // Connect directs to changed files
+  for (const path of directs) {
     const targetId = toNodeId(path.component);
     const sourceId = findClosestSource(path.component, changedFiles);
-    if (!sourceId) continue;
+    if (sourceId) {
+      g.setEdge(sourceId, targetId, { riskLevel: path.riskLevel, dependencyType: path.dependencyType });
+    }
+  }
 
-    g.setEdge(sourceId, targetId, {
-      riskLevel: path.riskLevel,
-      dependencyType: path.dependencyType,
-    });
+  // Connect transitives to directs (or changed files if no directs)
+  const directFiles = directs.length > 0 ? directs.map(d => d.component) : changedFiles;
+  for (const path of transitives) {
+    const targetId = toNodeId(path.component);
+    const sourceId = findClosestSource(path.component, directFiles);
+    if (sourceId) {
+      g.setEdge(sourceId, targetId, { riskLevel: path.riskLevel, dependencyType: path.dependencyType });
+    }
+  }
+
+  // Connect implicits to anything else (or changed files)
+  const allExplicitFiles = [...directs, ...transitives].map(p => p.component);
+  const implicitSources = allExplicitFiles.length > 0 ? allExplicitFiles : changedFiles;
+  for (const path of implicits) {
+    const targetId = toNodeId(path.component);
+    const sourceId = findClosestSource(path.component, implicitSources);
+    if (sourceId) {
+      g.setEdge(sourceId, targetId, { riskLevel: path.riskLevel, dependencyType: path.dependencyType });
+    }
   }
 
   dagre.layout(g);
@@ -112,9 +135,10 @@ export function buildGraphFromPaths(
 }
 
 export function toNodeId(component: string): string {
-  return component
-    .replace(/^.*[/\\]/, "")
-    .replace(/\.[^.]*$/, "");
+  // Use the full component name as ID to prevent collisions 
+  // (e.g. auth/token.ts and payments/token.ts)
+  // Just strip leading slashes or whitespace
+  return component.trim().replace(/^\/+/, "");
 }
 
 function findClosestSource(

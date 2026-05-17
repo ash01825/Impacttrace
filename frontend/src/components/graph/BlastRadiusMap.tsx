@@ -38,7 +38,11 @@ export default function BlastRadiusMap({
 
   useEffect(() => {
     const paths = response?.impactPaths || streamingPaths;
-    if (!paths || paths.length === 0) return;
+    if (!paths || paths.length === 0) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
 
     const files = changedFiles.length > 0 ? changedFiles : [];
     if (files.length === 0 && response?.changedFiles) {

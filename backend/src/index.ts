@@ -5,6 +5,7 @@ import * as path from "path";
 import { healthRouter } from "./routes/health";
 import { analyzeRouter } from "./routes/analyze";
 import { scanRouter } from "./routes/scan";
+import { repoContextRouter } from "./routes/repoContext";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
@@ -17,6 +18,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api", healthRouter);
 app.use("/api", analyzeRouter);
 app.use("/api", scanRouter);
+app.use("/api", repoContextRouter);
 
 app.listen(PORT, () => {
   process.stdout.write(`ImpactTrace backend running on http://localhost:${PORT}\n`);

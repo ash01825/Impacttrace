@@ -24,6 +24,11 @@ export interface GraniteResponse {
   };
   contextSource?: string;
   changedFiles?: string[];
+  modelInfo?: {
+    model: string;
+    provider: string;
+    analysisTimeMs: number;
+  };
 }
 
 export interface AnalysisHistoryEntry {

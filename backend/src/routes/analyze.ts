@@ -115,6 +115,9 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
 
   // Parse diff for changed files (multi-file support)
   const diffInfo = parsedFiles || parseMultiFileDiff(diff);
+  const changedFilePaths = diffInfo.files.map((f: { filePath: string; changedFunctions: string[] }) => f.filePath);
+
+  sendEvent("changed_files", changedFilePaths);
 
   let phaseIndex = 0;
   const phaseInterval = setInterval(() => {
@@ -140,7 +143,9 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
       context
     );
 
+    const analysisStartTime = Date.now();
     const rawResponse = await generateText(prompt, { maxTokens: 8192, temperature: 0.1 });
+    const analysisTimeMs = Date.now() - analysisStartTime;
 
     clearInterval(phaseInterval);
 
@@ -166,6 +171,12 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
       summary: parsed.summary,
       contextSource,
       changedFiles: diffInfo.files.map((f: { filePath: string; changedFunctions: string[] }) => f.filePath),
+      codebaseInsights: parsed.codebaseInsights,
+      modelInfo: {
+        model: "nvidia/nemotron-3-nano-30b-a3b:free",
+        provider: "NVIDIA (via OpenRouter)",
+        analysisTimeMs,
+      },
     });
   } catch (err) {
     clearInterval(phaseInterval);
