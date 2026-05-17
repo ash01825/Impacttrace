@@ -36,6 +36,7 @@ export default function App() {
         impactPaths: resp.impactPaths,
         summary: resp.summary,
         codebaseInsights: resp.codebaseInsights,
+        modelInfo: resp.modelInfo,
         timestamp: Date.now(),
       });
     },
@@ -131,9 +132,9 @@ export default function App() {
                 diff={diff}
               />
             )}
-            <div className="text-xs text-[#0f62fe] bg-[#0f62fe]/10 border border-[#0f62fe]/20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm font-medium">
+            <a href="https://bob.ibm.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-[#0f62fe] bg-[#0f62fe]/10 border border-[#0f62fe]/20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm font-medium hover:bg-[#0f62fe]/20 transition-colors">
               <Robot size={14} weight="fill" /> IBM Bob
-            </div>
+            </a>
           </div>
         </div>
 

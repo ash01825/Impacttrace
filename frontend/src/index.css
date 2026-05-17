@@ -30,7 +30,7 @@
   }
   
   .btn-secondary {
-    @apply bg-transparent border border-zinc-700 text-text-primary font-medium px-4 py-2 transition-colors hover:bg-bg-surface active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply bg-transparent border border-zinc-700 text-text-primary font-medium px-4 py-2 transition-colors hover:bg-zinc-900 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
 
   /* Grid backgrounds instead of orbs/gradients */

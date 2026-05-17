@@ -12,6 +12,7 @@ interface UseAnalysisStreamReturn {
   impactPaths: ImpactPath[];
   currentPhase: PhaseData | null;
   response: GraniteResponse | null;
+  changedFiles: string[];
   isStreaming: boolean;
   error: string | null;
   startAnalysis: (params: AnalysisParams) => void;
@@ -24,6 +25,7 @@ export function useAnalysisStream(
   const [impactPaths, setImpactPaths] = useState<ImpactPath[]>([]);
   const [currentPhase, setCurrentPhase] = useState<PhaseData | null>(null);
   const [response, setResponse] = useState<GraniteResponse | null>(null);
+  const [changedFiles, setChangedFiles] = useState<string[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -32,6 +34,7 @@ export function useAnalysisStream(
     setIsStreaming(true);
     setError(null);
     setImpactPaths([]);
+    setChangedFiles([]);
     setResponse(null);
 
     abortRef.current = new AbortController();
@@ -83,7 +86,11 @@ export function useAnalysisStream(
                   setIsStreaming(false);
                   return;
                 }
-                if (eventType === "phase" || data.phase) {
+                if (eventType === "changed_files") {
+                  if (Array.isArray(data)) {
+                    setChangedFiles(data);
+                  }
+                } else if (eventType === "phase" || data.phase) {
                   setCurrentPhase(data as PhaseData);
                 } else if (eventType === "impact_path" || (data.component && data.riskLevel)) {
                   setImpactPaths((prev) => {
@@ -117,6 +124,7 @@ export function useAnalysisStream(
       abortRef.current.abort();
     }
     setImpactPaths([]);
+    setChangedFiles([]);
     setCurrentPhase(null);
     setResponse(null);
     setIsStreaming(false);
@@ -127,6 +135,7 @@ export function useAnalysisStream(
     impactPaths,
     currentPhase,
     response,
+    changedFiles,
     isStreaming,
     error,
     startAnalysis,

@@ -22,6 +22,11 @@ export interface GraniteResponse {
     architectureConcern: string;
     recommendedTests: string[];
   };
+  modelInfo?: {
+    model: string;
+    provider: string;
+    analysisTimeMs: number;
+  };
 }
 
 export interface PhaseData {

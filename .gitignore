@@ -41,7 +41,6 @@ temp/
 # CommandCode local config (don't commit taste/skills)
 .commandcode/
 
-bob_sessions/
 docs/
 *.pdf
 
