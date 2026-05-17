@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm --filter frontend build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

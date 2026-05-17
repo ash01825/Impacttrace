@@ -20,6 +20,10 @@ app.use("/api", analyzeRouter);
 app.use("/api", scanRouter);
 app.use("/api", repoContextRouter);
 
-app.listen(PORT, () => {
-  process.stdout.write(`ImpactTrace backend running on http://localhost:${PORT}\n`);
-});
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    process.stdout.write(`ImpactTrace backend running on http://localhost:${PORT}\n`);
+  });
+}
+
+export default app;
