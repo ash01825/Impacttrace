@@ -17,6 +17,11 @@ export interface GraniteResponse {
     whatIsAtRisk: string;
     whatToDo: string;
   };
+  codebaseInsights?: {
+    criticalFiles: string[];
+    architectureConcern: string;
+    recommendedTests: string[];
+  };
 }
 
 export interface PhaseData {

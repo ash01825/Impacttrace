@@ -17,8 +17,29 @@ export interface GraniteResponse {
     whatIsAtRisk: string;
     whatToDo: string;
   };
+  codebaseInsights?: {
+    criticalFiles: string[];
+    architectureConcern: string;
+    recommendedTests: string[];
+  };
   contextSource?: string;
   changedFiles?: string[];
+}
+
+export interface AnalysisHistoryEntry {
+  id: string;
+  timestamp: number;
+  repoUrl: string;
+  repoName: string;
+  diff: string;
+  description: string;
+  overallRisk: string;
+  affectedCount: number;
+  summary: {
+    whatChanged: string;
+    whatIsAtRisk: string;
+    whatToDo: string;
+  };
 }
 
 export interface SSEEvent {

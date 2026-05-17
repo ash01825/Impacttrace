@@ -18,7 +18,9 @@ interface UseAnalysisStreamReturn {
   reset: () => void;
 }
 
-export function useAnalysisStream(): UseAnalysisStreamReturn {
+export function useAnalysisStream(
+  onComplete?: (response: GraniteResponse) => void
+): UseAnalysisStreamReturn {
   const [impactPaths, setImpactPaths] = useState<ImpactPath[]>([]);
   const [currentPhase, setCurrentPhase] = useState<PhaseData | null>(null);
   const [response, setResponse] = useState<GraniteResponse | null>(null);
@@ -52,9 +54,9 @@ export function useAnalysisStream(): UseAnalysisStreamReturn {
 
         const decoder = new TextDecoder();
         let buffer = "";
+        let currentEvent = "";
 
         while (true) {
-
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -63,13 +65,18 @@ export function useAnalysisStream(): UseAnalysisStreamReturn {
           buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith("event: ")) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith("event:")) {
+              currentEvent = trimmedLine.slice(6).trim();
               continue;
             }
-            if (line.startsWith("data: ")) {
+            if (trimmedLine.startsWith("data:")) {
+              const dataStr = trimmedLine.slice(5).trim();
+              if (!dataStr) continue;
+
               try {
-                const data = JSON.parse(line.slice(6));
-                const eventType = getLastEventType(lines, line);
+                const data = JSON.parse(dataStr);
+                const eventType = currentEvent;
 
                 if (eventType === "error" || data.message) {
                   setError(data.message || "Analysis error");
@@ -78,10 +85,15 @@ export function useAnalysisStream(): UseAnalysisStreamReturn {
                 }
                 if (eventType === "phase" || data.phase) {
                   setCurrentPhase(data as PhaseData);
-                } else if (eventType === "impact_path" || data.component) {
-                  setImpactPaths((prev) => [...prev, data as ImpactPath]);
+                } else if (eventType === "impact_path" || (data.component && data.riskLevel)) {
+                  setImpactPaths((prev) => {
+                    if (prev.some(p => p.component === data.component)) return prev;
+                    return [...prev, data as ImpactPath];
+                  });
                 } else if (eventType === "complete" || data.summary) {
-                  setResponse(data as GraniteResponse);
+                  const resp = data as GraniteResponse;
+                  setResponse(resp);
+                  onComplete?.(resp);
                   setIsStreaming(false);
                 }
               } catch {
@@ -122,12 +134,3 @@ export function useAnalysisStream(): UseAnalysisStreamReturn {
   };
 }
 
-function getLastEventType(lines: string[], currentLine: string): string {
-  const currentIndex = lines.indexOf(currentLine);
-  for (let i = currentIndex - 1; i >= 0; i--) {
-    if (lines[i].startsWith("event: ")) {
-      return lines[i].slice(7).trim();
-    }
-  }
-  return "";
-}

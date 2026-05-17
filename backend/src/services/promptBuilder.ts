@@ -13,15 +13,20 @@ export function buildImpactAnalysisPrompt(
   change: ChangeContext,
   repoContext: RepoContext
 ): string {
-  // Filter out shared modules that are marked as deleted in the diff
+  // Filter out modules deleted in the diff
   const activeSharedModules = repoContext.sharedModules.filter(
     (m) => !change.diff.includes(`--- a/${m.path}`) || !change.diff.includes("deleted file")
   );
+
+  // Build dependency graph
   const fileDeps = new Map<string, string[]>();
   const reverseDeps = new Map<string, string[]>();
+  const allFiles = new Set<string>();
 
   for (const svc of repoContext.services) {
+    allFiles.add(svc.path);
     for (const dep of svc.dependencies) {
+      allFiles.add(dep);
       if (!fileDeps.has(svc.path)) fileDeps.set(svc.path, []);
       fileDeps.get(svc.path)!.push(dep);
       if (!reverseDeps.has(dep)) reverseDeps.set(dep, []);
@@ -29,52 +34,51 @@ export function buildImpactAnalysisPrompt(
     }
   }
 
-  // Build compact dependency summary
+  // Build compact summary
   const depEntries: string[] = [];
   for (const [file, deps] of fileDeps) {
     const importedBy = reverseDeps.get(file) || [];
     depEntries.push(
-      `  ${file}\n` +
-      `    → imports: [${deps.join(", ")}]\n` +
-      `    ← imported by: [${importedBy.join(", ")}]`
+      `${file}\n  → imports: [${deps.join(", ")}]\n  ← imported by: [${importedBy.join(", ")}]`
     );
   }
-  const depGraph = depEntries.join("\n") || "  (no dependencies detected)";
 
-  // Shared modules (cross-cutting concerns)
+  // Find most-critical files (most imported)
+  const sortedByCriticality = [...reverseDeps.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 5);
+
+  const criticalFiles = sortedByCriticality.map(
+    ([file, importers]) => `- **${file}** — imported by ${importers.length} files: [${importers.join(", ")}]`
+  ).join("\n");
+
+  const depGraph = depEntries.join("\n");
+
   const sharedInfo = activeSharedModules.length > 0
     ? activeSharedModules
-        .map(
-          (m) =>
-            `- **${m.path}** → consumed independently by: [${m.consumedBy.join(", ")}] (no import between them)`
-        )
+        .map((m) => `- **${m.path}** → consumed by: [${m.consumedBy.join(", ")}] (no imports between them)`)
         .join("\n")
     : "";
 
   const hasShared = activeSharedModules.length > 0;
 
-  const implicitSection = hasShared
-    ? `### Phase 3 — Behavioral Contracts (CRITICAL)
-These files are consumed independently by multiple modules WITHOUT any import between them:
-${sharedInfo}
-
-If the changed code alters a contract that any shared file defines (format, schema, types, config keys), the independent consumers will break silently. No linter or static analyzer catches this. Flag these as "behavioral_contract" with risk "high".`
-    : `### Phase 3 — Behavioral Contracts
-Check if the change could break implicit contracts — configuration formats, type definitions, API signatures in files consumed by multiple modules without import relationships.`;
-
   const changedFilesList = change.changedFiles
     .map((f) => `- **${f.filePath}** (functions: ${f.changedFunctions.join(", ") || "unknown"})`)
     .join("\n");
 
-  return `Analyze the blast radius of this code change. Discover ALL files affected — directly, transitively, and implicitly.
+  return `You are ImpactTrace, a codebase impact analysis engine. You analyze how code changes propagate through dependency graphs to find every file that could break — including implicit dependencies invisible to static analysis.
 
-**CRITICAL:** The dependency graph below is the SOLE source of truth for what files exist in this codebase. Ignore file paths or service names that appear ONLY in deleted diff content. Deleted files are removed — analyze impact of their removal on remaining code.
+## CODEBASE DEPENDENCY GRAPH
 
+**Critical files (most widely imported):**
+${criticalFiles}
+
+**Full dependency map (${allFiles.size} files):**
 ${depGraph}
 
-${hasShared ? `## Shared Cross-Cutting Files\n${sharedInfo}\n` : ""}
+${hasShared ? `**Cross-cutting shared files (behavioral contract risks):**\n${sharedInfo}\n` : ""}
 
-## Change
+## CHANGE TO ANALYZE
 
 ${changedFilesList}
 
@@ -84,41 +88,60 @@ ${changedFilesList}
 ${change.diff}
 \`\`\`
 
-## Phased Analysis
+## ANALYSIS
 
-Run all 4 phases. Assess overall risk considering combined impact across all phases.
+**CRITICAL**: The dependency graph is the source of truth. Ignore file paths appearing only in deleted diff content.
 
-### Phase 1 — Direct Dependents
-From the dependency graph, find every file that imports (→) any changed file. These will break immediately.
+Run these phases — trace ALL impact chains:
 
-### Phase 2 — Transitive Dependents  
-Trace chains: if A imports B and B imports the changed file, A is a transitive dependent. Follow chains 2-3 levels.
+### 1. Direct Callers
+Every file that imports (→) a changed file. These break immediately.
 
-${implicitSection}
+### 2. Transitive Callers
+Follow import chains 2-3 levels deep. If A→B→changed, A is transitive. Identify real breakage risks, not theoretical chains.
 
-### Phase 4 — Shared State
-Files that read the same configuration, types, or state as the changed code. Found via the "imported by" (←) relationship from shared files.
+${hasShared ? `### 3. Behavioral Contracts (IMPORTANT)
+${sharedInfo}
 
-## Output — JSON only, no markdown
+These files are consumed by multiple modules without imports between them. If the change alters a contract (schema, types, config format, API shape), ALL independent consumers break silently. No linter catches this. Flag as "behavioral_contract" with risk "high".` : `### 3. Implicit Contracts
+Look for config formats, type definitions, or API shapes in shared files that multiple modules consume independently without import relationships.`}
+
+### 4. Shared State
+Files reading the same configuration/types/state as changed code.
+
+## DETERMINE OVERALL RISK
+
+- **high**: Any behavioral contract OR >5 high-risk transitive paths OR changed file is in the "most imported" list
+- **medium**: 2-5 medium-risk paths, no behavioral contracts
+- **low**: 1-2 low-risk direct callers only, no chain depth >1
+
+## RETURN JSON ONLY
+
+Return EXACTLY this structure, no markdown:
 
 {
-  "overallRisk": "low" | "medium" | "high",
-  "affectedCount": <number>,
+  "overallRisk": "low",
+  "affectedCount": 4,
   "impactPaths": [
     {
-      "component": "<affected file path from the dependency graph>",
-      "dependencyType": "direct_caller" | "transitive_caller" | "behavioral_contract" | "shared_state",
-      "riskLevel": "low" | "medium" | "high",
-      "explanation": "<concrete: what file, what breaks, why>",
-      "remediation": "<specific action>",
-      "affectedFile": "<file path>",
-      "affectedLine": <number or null>
+      "component": "src/services/auth.ts",
+      "dependencyType": "direct_caller",
+      "riskLevel": "medium",
+      "explanation": "auth.ts directly imports the changed tokenValidator and will receive a compile error from the signature mismatch",
+      "remediation": "Update the call on line 23 to pass the new config parameter",
+      "affectedFile": "src/services/auth.ts",
+      "affectedLine": 23
     }
   ],
   "summary": {
-    "whatChanged": "<concrete description of the diff>",
-    "whatIsAtRisk": "<which files break and how>",
-    "whatToDo": "<prioritized steps, risk-ordered>"
+    "whatChanged": "The validateToken function signature was updated to require a config parameter. This function is the entry point for all token validation across 4 services.",
+    "whatIsAtRisk": "auth.ts and sessionManager.ts will break at compile time. The payment validation service shares a behavioral contract through token-schema.json — it will silently reject all tokens after this change.",
+    "whatToDo": "1. Update auth.ts line 23 to pass config. 2. Update sessionManager.ts to match. 3. Run payment validation integration tests — this is the highest risk."
+  },
+  "codebaseInsights": {
+    "criticalFiles": ["src/types/index.ts", "src/stores/connection-store.ts"],
+    "architectureConcern": "The connection-store is imported by 4 services creating a single point of failure — changes here cascade widely",
+    "recommendedTests": ["auth integration test", "payment validation contract test", "session restore e2e test"]
   }
 }`;
 }

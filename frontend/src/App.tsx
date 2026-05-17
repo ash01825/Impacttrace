@@ -5,22 +5,45 @@ import { useAnalysisStore } from "./store/analysisStore";
 import BlastRadiusMap from "./components/graph/BlastRadiusMap";
 import ImpactSummary from "./components/summary/ImpactSummary";
 import NodeDetailPanel from "./components/detail/NodeDetailPanel";
-import ReportExport from "./components/export/ReportExport";
+import ReportExport from "./components/analysis/ReportExport";
+import AnalysisHistory from "./components/analysis/AnalysisHistory";
+import CodebaseHealth from "./components/analysis/CodebaseHealth";
 import RiskScore from "./components/header/RiskScore";
 import ProgressIndicator from "./components/header/ProgressIndicator";
 import DiffInputPanel from "./components/analyze/DiffInputPanel";
 import ParsedFileList from "./components/analyze/ParsedFileList";
-import type { ImpactPath } from "./types";
-import { CircleNotch, TerminalWindow } from "@phosphor-icons/react";
+import type { ImpactPath, GraniteResponse } from "./types";
+import { CircleNotch, Robot } from "@phosphor-icons/react";
 
 export default function App() {
-  const { impactPaths, response, currentPhase, isStreaming, error, startAnalysis, reset } = useAnalysisStream();
-  const { currentRepoContext, currentRepoName } = useAnalysisStore();
-  const [selectedNode, setSelectedNode] = useState<ImpactPath | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const { currentRepoContext, currentRepoName, addAnalysis } = useAnalysisStore();
   const [diff, setDiff] = useState("");
   const [description, setDescription] = useState("");
   const [changedFiles, setChangedFiles] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<ImpactPath | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const handleAnalysisComplete = useCallback(
+    (resp: GraniteResponse) => {
+      addAnalysis({
+        id: crypto.randomUUID(),
+        repoName: currentRepoName || "unknown",
+        repoUrl: "",
+        diff,
+        description,
+        overallRisk: resp.overallRisk,
+        affectedCount: resp.affectedCount,
+        impactPaths: resp.impactPaths,
+        summary: resp.summary,
+        codebaseInsights: resp.codebaseInsights,
+        timestamp: Date.now(),
+      });
+    },
+    [currentRepoName, diff, description, addAnalysis]
+  );
+
+  const { impactPaths, response, currentPhase, isStreaming, error, startAnalysis, reset } =
+    useAnalysisStream(handleAnalysisComplete);
 
   const handleAnalyze = useCallback(() => {
     if (!diff.trim() || !currentRepoContext) return;
@@ -81,10 +104,13 @@ export default function App() {
           </button>
 
           {error && (
-            <div className="border border-risk-high/30 bg-risk-high/10 p-3 text-sm text-risk-high">
+            <div className="border border-risk-high/30 bg-risk-high/10 p-3 rounded-lg text-sm text-risk-high">
               {error}
             </div>
           )}
+
+          <CodebaseHealth />
+          <AnalysisHistory />
         </div>
       </div>
 
@@ -97,9 +123,16 @@ export default function App() {
             <ProgressIndicator phase={currentPhase} isStreaming={isStreaming} nodeCount={impactPaths.length} />
           </div>
           <div className="flex items-center gap-4">
-            <ReportExport response={response} impactPaths={impactPaths} />
-            <div className="text-xs text-text-muted flex items-center gap-1.5 px-2 py-1 border border-zinc-800 rounded-sm bg-bg-primary">
-              <TerminalWindow /> IBM Bob
+            {response && (
+              <ReportExport
+                response={response}
+                repoName={currentRepoName || "unknown"}
+                changedFiles={responseChangedFiles.length > 0 ? responseChangedFiles : changedFiles}
+                diff={diff}
+              />
+            )}
+            <div className="text-xs text-[#0f62fe] bg-[#0f62fe]/10 border border-[#0f62fe]/20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm font-medium">
+              <Robot size={14} weight="fill" /> IBM Bob
             </div>
           </div>
         </div>

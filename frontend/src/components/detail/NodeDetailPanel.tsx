@@ -1,4 +1,4 @@
-import { X } from "@phosphor-icons/react";
+import { X, Robot } from "@phosphor-icons/react";
 import type { ImpactPath } from "@/types";
 
 interface Props {
@@ -57,7 +57,9 @@ export default function NodeDetailPanel({ path, onClose }: Props) {
 
         {/* Explanation */}
         <div>
-          <div className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">IBM Bob Analysis</div>
+          <div className="text-xs font-medium text-[#0f62fe] mb-2 uppercase tracking-wider flex items-center gap-1.5">
+            <Robot size={14} weight="fill" /> IBM Bob Analysis
+          </div>
           <p className="text-sm leading-relaxed text-text-secondary">
             {path.explanation}
           </p>
