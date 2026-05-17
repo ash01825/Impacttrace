@@ -3,12 +3,11 @@ import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
 import simpleGit from "simple-git";
-import { generateText } from "../services/watsonxClient";
+import { generateText } from "../services/aiClient";
 import { buildImpactAnalysisPrompt } from "../services/promptBuilder";
 import { parseGraniteResponse } from "../parsers/graniteParser";
-import { getFallbackResponse } from "../services/fallback";
 import { scanRepository } from "../services/repoScanner";
-import demoRepoContext from "../context/repoContext.json";
+import { parseMultiFileDiff } from "../services/diffParser";
 import { PhaseData, RepoContext } from "../types";
 
 const PROJECT_ROOT = path.resolve(__dirname, "../../..");
@@ -24,10 +23,10 @@ const PHASES: { phase: PhaseData["phase"]; label: string }[] = [
 ];
 
 analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
-  const { diff, changedFile, changedFunction, description, repoPath, repoUrl, repoContext } = req.body;
+  const { diff, description, repoPath, repoUrl, repoContext, parsedFiles } = req.body;
 
-  if (!diff || !changedFile || !changedFunction) {
-    res.status(400).json({ error: "Missing required fields: diff, changedFile, changedFunction" });
+  if (!diff) {
+    res.status(400).json({ error: "Missing required field: diff" });
     return;
   }
 
@@ -41,7 +40,6 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  // Determine repo context: provided directly > scanned from path > demo default
   let context: RepoContext;
   let contextSource: string;
 
@@ -91,8 +89,9 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
       context = scanResult.repoContext;
       contextSource = "cloned";
 
-      // Clean up
-      try { fs.rmSync(clonePath, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(clonePath, { recursive: true, force: true });
+      } catch {}
 
       sendEvent("phase", {
         phase: "indexing",
@@ -107,19 +106,16 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
       return;
     }
   } else {
-    context = demoRepoContext as RepoContext;
-    contextSource = "demo";
-  }
-
-  const useFallback = process.env.USE_FALLBACK === "true";
-
-  if (useFallback) {
-    await streamFallbackPhasesAndResults(res, sendEvent);
+    sendEvent("error", {
+      message: "No repository context provided. Please scan a repo first.",
+    });
     res.end();
     return;
   }
 
-  // Stream phases to frontend while Granite processes
+  // Parse diff for changed files (multi-file support)
+  const diffInfo = parsedFiles || parseMultiFileDiff(diff);
+
   let phaseIndex = 0;
   const phaseInterval = setInterval(() => {
     if (phaseIndex < PHASES.length) {
@@ -135,9 +131,11 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
     const prompt = buildImpactAnalysisPrompt(
       {
         diff,
-        changedFile,
-        changedFunction,
-        description: description || "Code modification",
+        changedFiles: diffInfo.files.map((f: { filePath: string; changedFunctions: string[] }) => ({
+          filePath: f.filePath,
+          changedFunctions: f.changedFunctions,
+        })),
+        description: description || "Code modification across multiple files",
       },
       context
     );
@@ -164,61 +162,20 @@ analyzeRouter.post("/analyze", async (req: Request, res: Response) => {
     sendEvent("complete", {
       overallRisk: parsed.overallRisk,
       affectedCount: parsed.affectedCount,
+      impactPaths: parsed.impactPaths,
       summary: parsed.summary,
       contextSource,
+      changedFiles: diffInfo.files.map((f: { filePath: string; changedFunctions: string[] }) => f.filePath),
     });
   } catch (err) {
     clearInterval(phaseInterval);
-    process.stderr.write(`Granite analysis failed, falling back: ${err}\n`);
-    await streamFallbackResultsOnly(res, sendEvent);
+    sendEvent("error", {
+      message: `Analysis failed: ${err instanceof Error ? err.message : String(err)}. Please check your API key and try again.`,
+    });
   }
 
   res.end();
 });
-
-async function streamFallbackPhasesAndResults(
-  res: Response,
-  sendEvent: (event: string, data: unknown) => void
-) {
-  const fallback = getFallbackResponse();
-
-  for (let i = 0; i < PHASES.length; i++) {
-    sendEvent("phase", {
-      phase: PHASES[i].phase,
-      label: PHASES[i].label,
-    });
-    await delay(600);
-  }
-
-  for (let i = 0; i < fallback.impactPaths.length; i++) {
-    sendEvent("impact_path", fallback.impactPaths[i]);
-    await delay(200);
-  }
-
-  sendEvent("complete", {
-    overallRisk: fallback.overallRisk,
-    affectedCount: fallback.affectedCount,
-    summary: fallback.summary,
-  });
-}
-
-async function streamFallbackResultsOnly(
-  res: Response,
-  sendEvent: (event: string, data: unknown) => void
-) {
-  const fallback = getFallbackResponse();
-
-  for (let i = 0; i < fallback.impactPaths.length; i++) {
-    sendEvent("impact_path", fallback.impactPaths[i]);
-    await delay(200);
-  }
-
-  sendEvent("complete", {
-    overallRisk: fallback.overallRisk,
-    affectedCount: fallback.affectedCount,
-    summary: fallback.summary,
-  });
-}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

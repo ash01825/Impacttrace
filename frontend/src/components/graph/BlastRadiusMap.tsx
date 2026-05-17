@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -10,8 +10,9 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import ImpactNode from "./ImpactNode";
-import { GraniteResponse, ImpactPath } from "@/types";
-import { buildGraphFromResponse } from "./graphUtils";
+import GraphLegend from "./GraphLegend";
+import type { GraniteResponse, ImpactPath } from "@/types";
+import { buildGraphFromPaths, toNodeId } from "./graphUtils";
 
 const nodeTypes: NodeTypes = {
   impactNode: ImpactNode,
@@ -20,6 +21,7 @@ const nodeTypes: NodeTypes = {
 interface BlastRadiusMapProps {
   response: GraniteResponse | null;
   streamingPaths: ImpactPath[];
+  changedFiles: string[];
   onNodeClick: (path: ImpactPath | null) => void;
   selectedNodeId: string | null;
 }
@@ -27,37 +29,26 @@ interface BlastRadiusMapProps {
 export default function BlastRadiusMap({
   response,
   streamingPaths,
+  changedFiles,
   onNodeClick,
   selectedNodeId,
 }: BlastRadiusMapProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  const currentResponse = useMemo((): GraniteResponse | null => {
-    if (streamingPaths.length === 0) return null;
-    return {
-      overallRisk: "medium",
-      affectedCount: streamingPaths.length,
-      impactPaths: streamingPaths,
-      summary: {
-        whatChanged: "",
-        whatIsAtRisk: "",
-        whatToDo: "",
-      },
-    };
-  }, [streamingPaths]);
-
   useEffect(() => {
-    const source = response || currentResponse;
-    if (!source) return;
-
-    const paths = source.impactPaths || streamingPaths;
+    const paths = response?.impactPaths || streamingPaths;
     if (!paths || paths.length === 0) return;
 
-    const { nodes: newNodes, edges: newEdges } = buildGraphFromResponse(paths);
+    const files = changedFiles.length > 0 ? changedFiles : [];
+    if (files.length === 0 && response?.changedFiles) {
+      files.push(...response.changedFiles);
+    }
+
+    const { nodes: newNodes, edges: newEdges } = buildGraphFromPaths(paths, files);
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [response, currentResponse, streamingPaths, setNodes, setEdges]);
+  }, [response, streamingPaths, changedFiles, setNodes, setEdges]);
 
   useEffect(() => {
     setNodes((nds) =>
@@ -76,8 +67,8 @@ export default function BlastRadiusMap({
     (_event: React.MouseEvent, node: Node) => {
       const allPaths = response?.impactPaths || streamingPaths || [];
       const path = allPaths.find((p) => {
-        const nodeId = p.component.replace("services/", "").replace(/^.*\//, "");
-        return nodeId === node.id || p.component === node.id;
+        const nid = toNodeId(p.component);
+        return nid === node.id || p.component === node.id;
       });
       onNodeClick(path || null);
     },
@@ -109,6 +100,7 @@ export default function BlastRadiusMap({
         <Controls
           className="[&>button]:!bg-white/5 [&>button]:!border-white/10 [&>button]:!text-white/60 [&>button:hover]:!bg-white/10"
         />
+        <GraphLegend />
       </ReactFlow>
     </div>
   );

@@ -1,14 +1,11 @@
 import { useState, useCallback, useRef } from "react";
-import { GraniteResponse, ImpactPath, PhaseData } from "@/types";
+import type { GraniteResponse, ImpactPath, PhaseData, ParsedDiff, RepoContext } from "@/types";
 
 interface AnalysisParams {
   diff: string;
-  changedFile: string;
-  changedFunction: string;
-  description?: string;
-  repoPath?: string;
-  repoUrl?: string;
-  repoContext?: unknown;
+  description: string;
+  repoContext: RepoContext;
+  parsedFiles?: ParsedDiff;
 }
 
 interface UseAnalysisStreamReturn {

@@ -1,172 +1,142 @@
-import { useState, useCallback } from "react";
-import AppShell from "./components/layout/AppShell";
-import InputPanel from "./components/input/InputPanel";
-import CustomInput from "./components/input/CustomInput";
+import { useCallback, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAnalysisStream } from "./hooks/useAnalysisStream";
+import { useAnalysisStore } from "./store/analysisStore";
 import BlastRadiusMap from "./components/graph/BlastRadiusMap";
-import RiskScore from "./components/header/RiskScore";
-import ProgressIndicator from "./components/header/ProgressIndicator";
 import ImpactSummary from "./components/summary/ImpactSummary";
 import NodeDetailPanel from "./components/detail/NodeDetailPanel";
 import ReportExport from "./components/export/ReportExport";
-import { useAnalysisStream } from "./hooks/useAnalysisStream";
-import { ImpactPath, RepoContext } from "./types";
-
-type InputMode = "demo" | "custom";
+import RiskScore from "./components/header/RiskScore";
+import ProgressIndicator from "./components/header/ProgressIndicator";
+import DiffInputPanel from "./components/analyze/DiffInputPanel";
+import ParsedFileList from "./components/analyze/ParsedFileList";
+import type { ImpactPath } from "./types";
+import { CircleNotch, TerminalWindow } from "@phosphor-icons/react";
 
 export default function App() {
-  const {
-    impactPaths,
-    currentPhase,
-    response,
-    isStreaming,
-    error,
-    startAnalysis,
-    reset,
-  } = useAnalysisStream();
-
-  const [selectedPath, setSelectedPath] = useState<ImpactPath | null>(null);
+  const { impactPaths, response, currentPhase, isStreaming, error, startAnalysis, reset } = useAnalysisStream();
+  const { currentRepoContext, currentRepoName } = useAnalysisStore();
+  const [selectedNode, setSelectedNode] = useState<ImpactPath | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("demo");
+  const [diff, setDiff] = useState("");
+  const [description, setDescription] = useState("");
+  const [changedFiles, setChangedFiles] = useState<string[]>([]);
 
-  const overallRisk = response?.overallRisk || null;
+  const handleAnalyze = useCallback(() => {
+    if (!diff.trim() || !currentRepoContext) return;
+    reset();
+    setSelectedNode(null);
+    setSelectedNodeId(null);
+    const parsed = changedFiles.map((f) => {
+      const base = f.split("/").pop()?.replace(/\.[^.]*$/, "") || f;
+      return { filePath: f, changedFunctions: [base] };
+    });
+    startAnalysis({
+      diff,
+      description: description || "Code modification",
+      repoContext: currentRepoContext,
+      parsedFiles: parsed.length > 0 ? { files: parsed } : undefined,
+    });
+  }, [diff, description, changedFiles, currentRepoContext, startAnalysis, reset]);
 
-  const handleAnalyzeDemo = useCallback(
-    (diff: string, changedFile: string, changedFunction: string, description: string) => {
-      reset();
-      setSelectedPath(null);
-      setSelectedNodeId(null);
-      startAnalysis({ diff, changedFile, changedFunction, description });
-    },
-    [startAnalysis, reset]
-  );
-
-  const handleAnalyzeCustom = useCallback(
-    (params: {
-      diff: string;
-      changedFile: string;
-      changedFunction: string;
-      description: string;
-      repoPath?: string;
-      repoUrl?: string;
-      repoContext?: RepoContext;
-    }) => {
-      reset();
-      setSelectedPath(null);
-      setSelectedNodeId(null);
-      startAnalysis(params);
-    },
-    [startAnalysis, reset]
-  );
-
-  const handleNodeClick = useCallback((path: ImpactPath | null) => {
-    setSelectedPath(path);
-    setSelectedNodeId(path?.component || null);
-  }, []);
-
-  const header = (
-    <div className="flex w-full items-center justify-between">
-      <div className="flex items-center gap-4">
-        <h1 className="font-mono text-sm font-semibold text-text-primary tracking-tight">
-          ImpactTrace
-        </h1>
-        <span className="text-xs text-zinc-600 hidden sm:inline">
-          Know what breaks before you ship
-        </span>
-        <div className="flex items-center gap-1.5 rounded border border-[#0f62fe]/30 bg-[#0f62fe]/10 px-2 py-0.5">
-          <svg className="h-3 w-3 text-[#0f62fe]" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-          </svg>
-          <span className="text-[10px] font-medium text-[#0f62fe]">Powered by IBM Bob</span>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-6">
-        <ProgressIndicator
-          phase={currentPhase}
-          isStreaming={isStreaming}
-          nodeCount={impactPaths.length}
-        />
-        <RiskScore risk={overallRisk} />
-        <ReportExport response={response} impactPaths={impactPaths} />
-      </div>
-    </div>
-  );
-
-  const leftPanel = (
-    <div className="flex flex-col h-full">
-      <div className="flex border-b border-white/5">
-        <button
-          onClick={() => setInputMode("demo")}
-          className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-            inputMode === "demo"
-              ? "text-text-primary border-b border-text-primary"
-              : "text-zinc-600 hover:text-zinc-400"
-          }`}
-        >
-          Demo Scenarios
-        </button>
-        <button
-          onClick={() => setInputMode("custom")}
-          className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-            inputMode === "custom"
-              ? "text-text-primary border-b border-text-primary"
-              : "text-zinc-600 hover:text-zinc-400"
-          }`}
-        >
-          Custom Repo
-        </button>
-      </div>
-      {inputMode === "demo" ? (
-        <InputPanel onAnalyze={handleAnalyzeDemo} isStreaming={isStreaming} />
-      ) : (
-        <CustomInput onAnalyze={handleAnalyzeCustom} isStreaming={isStreaming} />
-      )}
-    </div>
-  );
-
-  const center = (
-    <div className="relative h-full">
-      <BlastRadiusMap
-        response={response}
-        streamingPaths={impactPaths}
-        onNodeClick={handleNodeClick}
-        selectedNodeId={selectedNodeId}
-      />
-      <ImpactSummary response={response} />
-    </div>
-  );
-
-  const rightPanel = selectedPath ? (
-    <NodeDetailPanel path={selectedPath} onClose={() => handleNodeClick(null)} />
-  ) : null;
-
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-bg-primary">
-        <div className="text-center max-w-lg px-8">
-          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-risk-high/10">
-            <svg className="h-6 w-6 text-risk-high" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <p className="text-risk-high font-mono text-sm mb-4">{error}</p>
-          <button
-            onClick={reset}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-text-primary hover:bg-white/15"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const responseChangedFiles = response?.changedFiles || [];
 
   return (
-    <AppShell
-      header={header}
-      leftPanel={leftPanel}
-      center={center}
-      rightPanel={rightPanel}
-    />
+    <div className="flex h-full bg-bg-primary font-sans text-text-primary">
+      {/* Left: Input */}
+      <div className="flex w-80 shrink-0 flex-col border-r border-zinc-800 bg-bg-surface">
+        <div className="border-b border-zinc-800 px-5 py-4">
+          <h2 className="text-sm font-semibold">Context Input</h2>
+          {currentRepoName ? (
+            <p className="mt-1 font-mono text-xs text-text-muted truncate">{currentRepoName}</p>
+          ) : (
+            <p className="mt-1 text-xs text-risk-high">No repository selected</p>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-6 overflow-auto p-5">
+          <DiffInputPanel
+            value={diff}
+            onChange={setDiff}
+            onFilesDetected={setChangedFiles}
+            description={description}
+            onDescriptionChange={setDescription}
+          />
+
+          {changedFiles.length > 0 && <ParsedFileList files={changedFiles} />}
+
+          <button
+            onClick={handleAnalyze}
+            disabled={!diff.trim() || !currentRepoContext || isStreaming}
+            className="btn-primary w-full py-3 flex justify-center items-center"
+          >
+            {isStreaming ? (
+              <span className="flex items-center gap-2">
+                <CircleNotch size={16} className="animate-spin" />
+                Analyzing...
+              </span>
+            ) : (
+              "Compute Impact"
+            )}
+          </button>
+
+          {error && (
+            <div className="border border-risk-high/30 bg-risk-high/10 p-3 text-sm text-risk-high">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Center: Graph */}
+      <div className="relative flex flex-1 flex-col min-w-0 bg-bg-primary">
+        {/* Top bar */}
+        <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4 bg-bg-surface">
+          <div className="flex items-center gap-6">
+            <RiskScore risk={response?.overallRisk || null} />
+            <ProgressIndicator phase={currentPhase} isStreaming={isStreaming} nodeCount={impactPaths.length} />
+          </div>
+          <div className="flex items-center gap-4">
+            <ReportExport response={response} impactPaths={impactPaths} />
+            <div className="text-xs text-text-muted flex items-center gap-1.5 px-2 py-1 border border-zinc-800 rounded-sm bg-bg-primary">
+              <TerminalWindow /> IBM Bob
+            </div>
+          </div>
+        </div>
+
+        {/* Graph */}
+        <div className="relative flex-1">
+          <BlastRadiusMap
+            response={response}
+            streamingPaths={impactPaths}
+            changedFiles={responseChangedFiles.length > 0 ? responseChangedFiles : changedFiles}
+            onNodeClick={(path) => {
+              setSelectedNode(path);
+              setSelectedNodeId(path?.component || null);
+            }}
+            selectedNodeId={selectedNodeId}
+          />
+          {response?.summary && <ImpactSummary response={response} />}
+        </div>
+      </div>
+
+      {/* Right: Detail */}
+      <AnimatePresence>
+        {selectedNode && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 340, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="shrink-0 border-l border-zinc-800 bg-bg-surface overflow-hidden"
+          >
+            <NodeDetailPanel
+              path={selectedNode}
+              onClose={() => { setSelectedNode(null); setSelectedNodeId(null); }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

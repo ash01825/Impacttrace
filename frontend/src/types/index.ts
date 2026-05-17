@@ -17,6 +17,8 @@ export interface GraniteResponse {
     whatIsAtRisk: string;
     whatToDo: string;
   };
+  contextSource?: string;
+  changedFiles?: string[];
 }
 
 export interface SSEEvent {
@@ -32,15 +34,6 @@ export interface PhaseData {
 export interface ErrorData {
   message: string;
   code?: string;
-}
-
-export interface Scenario {
-  id: string;
-  name: string;
-  description: string;
-  changedFile: string;
-  changedFunction: string;
-  diffSnippet: string;
 }
 
 export interface RepoContext {
@@ -61,4 +54,20 @@ export interface SharedModuleInfo {
   path: string;
   description: string;
   consumedBy: string[];
+}
+
+export interface ParsedFile {
+  filePath: string;
+  changedFunctions: string[];
+}
+
+export interface ParsedDiff {
+  files: ParsedFile[];
+}
+
+export interface AnalysisParams {
+  diff: string;
+  description: string;
+  repoContext: RepoContext;
+  parsedFiles?: ParsedDiff;
 }

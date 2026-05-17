@@ -2,18 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  :root {
+    --bg-primary: #09090B;
+    --bg-surface: #18181B;
+    --text-primary: #FAFAFA;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    @apply bg-text-primary text-bg-primary;
+  }
 }
 
-body {
-  background-color: #0a0a0b;
-  color: #e4e4e7;
-  min-height: 100vh;
+@layer components {
+  /* Stark, flat, brutalist/minimalist B2B panels */
+  .panel {
+    @apply bg-bg-primary border border-zinc-700 rounded-none;
+  }
+  
+  .btn-primary {
+    @apply bg-text-primary text-bg-primary border border-transparent font-medium px-4 py-2 transition-colors hover:bg-zinc-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .btn-secondary {
+    @apply bg-transparent border border-zinc-700 text-text-primary font-medium px-4 py-2 transition-colors hover:bg-bg-surface active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  /* Grid backgrounds instead of orbs/gradients */
+  .bg-grid {
+    background-size: 40px 40px;
+    background-image: 
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  }
+  
+  .bg-dot {
+    background-size: 20px 20px;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  }
 }
 
-#root {
-  min-height: 100vh;
+/* React Flow Minimal Overrides */
+.react-flow__renderer {
+  @apply bg-transparent !important;
+}
+
+.react-flow__edge-path {
+  stroke: #3F3F46 !important;
+  stroke-width: 1px !important;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 4;
+  animation: flow-dash 1s linear infinite;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+/* Hide the default attribution */
+.react-flow__panel.react-flow__attribution {
+  display: none !important;
 }

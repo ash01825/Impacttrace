@@ -1,67 +1,61 @@
-import { memo } from "react";
-import { Handle, Position, NodeProps } from "reactflow";
-import { motion } from "framer-motion";
-import { getRiskColor } from "./graphUtils";
+import { Handle, Position } from "reactflow";
+import type { ImpactPath } from "@/types";
 
 interface ImpactNodeData {
-  label: string;
-  dependencyType: string;
-  riskLevel: string;
-  isImplicitDep: boolean;
+  path: ImpactPath;
+  isChanged?: boolean;
+  isImplicit?: boolean;
+  onSelect?: (path: ImpactPath) => void;
+  isSelected?: boolean;
 }
 
-function ImpactNode({ data, selected }: NodeProps<ImpactNodeData>) {
-  const { label, dependencyType, riskLevel, isImplicitDep } = data;
-  const color = getRiskColor(riskLevel);
+const RISK_MAP = {
+  low: { border: "#34D399", bg: "rgba(52, 211, 153, 0.05)", text: "#34D399" },
+  medium: { border: "#FBBF24", bg: "rgba(251, 191, 36, 0.05)", text: "#FBBF24" },
+  high: { border: "#F87171", bg: "rgba(248, 113, 113, 0.1)", text: "#F87171" },
+};
+
+const CHANGED_STYLE = { border: "#FAFAFA", bg: "rgba(250, 250, 250, 0.1)", text: "#FAFAFA" };
+
+export default function ImpactNode({ data }: { data: ImpactNodeData }) {
+  const { path, isChanged, isImplicit, onSelect, isSelected } = data;
+  const cfg = isChanged ? CHANGED_STYLE : RISK_MAP[path.riskLevel] ?? RISK_MAP.low;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.5 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className={isImplicitDep ? "implicit-node" : ""}
+    <div
+      onClick={() => !isChanged && onSelect?.(path)}
+      className="relative cursor-pointer transition-colors"
+      style={{ minWidth: 180 }}
     >
-      {/* Custom React Flow node for impact visualization */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        style={{ background: color, border: "none" }}
-      />
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
 
       <div
-        className="rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm"
+        className="px-3 py-2 border"
         style={{
-          background: "rgba(10, 10, 11, 0.95)",
-          borderColor: selected ? color : isImplicitDep ? color : `${color}40`,
-          borderWidth: isImplicitDep ? 2 : 1,
-          borderStyle: isImplicitDep ? "dashed" : "solid",
-          minWidth: 140,
+          background: cfg.bg,
+          borderColor: isSelected ? cfg.text : "transparent",
+          borderLeftColor: cfg.border,
+          borderLeftWidth: "4px",
         }}
       >
-        <div
-          className="text-xs font-mono truncate"
-          style={{ color: "#e4e4e7", maxWidth: 160 }}
-        >
-          {label}
-        </div>
-        <div className="mt-1 flex items-center gap-1.5">
-          <div
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ background: color }}
-          />
-          <span className="text-[10px] font-medium" style={{ color }}>
-            {dependencyType.replace(/_/g, " ")}
+        <div className="flex justify-between items-start gap-4 mb-2">
+          <span className="font-mono text-xs font-semibold break-all text-text-primary">
+            {path.component}
           </span>
         </div>
-      </div>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        style={{ background: color, border: "none" }}
-      />
-    </motion.div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[10px] text-text-muted uppercase tracking-wider">
+            {path.dependencyType.replace(/_/g, " ")}
+          </span>
+          {isImplicit && (
+            <span className="border border-zinc-700 px-1 text-[9px] uppercase tracking-wider text-text-secondary">
+              Implicit
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
-
-export default memo(ImpactNode);

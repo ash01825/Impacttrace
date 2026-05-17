@@ -1,139 +1,186 @@
-import { ImpactPath } from "@/types";
-import { Node, Edge, MarkerType } from "reactflow";
+import dagre from "dagre";
+import type { Node, Edge } from "reactflow";
+import type { ImpactPath } from "../../types";
 
-const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
-  "tokenValidator.js": { x: 400, y: 300 },
-  "authMiddleware.js": { x: 200, y: 150 },
-  "sessionManager.js": { x: 600, y: 150 },
-  "orderService.js": { x: 50, y: 50 },
-  "orderController.js": { x: 50, y: 450 },
-  "checkoutService.js": { x: 50, y: 250 },
-  "userController.js": { x: 750, y: 50 },
-  "profileService.js": { x: 750, y: 450 },
-  "preferencesService.js": { x: 750, y: 550 },
-  "validateCheckoutToken.js": { x: 750, y: 250 },
-  "paymentProcessor.js": { x: 800, y: 100 },
-  "refundHandler.js": { x: 800, y: 400 },
-};
+const CENTER_NODE_WIDTH = 200;
+const CENTER_NODE_HEIGHT = 80;
+const AFFECTED_NODE_WIDTH = 170;
+const AFFECTED_NODE_HEIGHT = 65;
 
-export function buildGraphFromResponse(
-  currentPaths: ImpactPath[]
+export function buildGraphFromPaths(
+  impactPaths: ImpactPath[],
+  changedFiles: string[]
 ): { nodes: Node[]; edges: Edge[] } {
-  const seen = new Set<string>();
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: "LR",
+    nodesep: 100,
+    ranksep: 180,
+    marginx: 40,
+    marginy: 40,
+  });
 
-  // Center node (the changed file)
-  const centerId = "tokenValidator.js";
-  if (!seen.has(centerId)) {
-    seen.add(centerId);
-    nodes.push(createNode(centerId, "changed", { x: 400, y: 300 }));
+  const seenNodes = new Set<string>();
+
+  // Add center nodes (changed files)
+  for (const filePath of changedFiles) {
+    const nodeId = toNodeId(filePath);
+    if (seenNodes.has(nodeId)) continue;
+    seenNodes.add(nodeId);
+    g.setNode(nodeId, { width: CENTER_NODE_WIDTH, height: CENTER_NODE_HEIGHT });
   }
 
-  for (const path of currentPaths) {
-    const nodeId = path.component.replace("services/", "").replace(/^.*\//, "");
+  // Add affected nodes
+  for (const path of impactPaths) {
+    const nodeId = toNodeId(path.component);
+    if (seenNodes.has(nodeId)) continue;
+    seenNodes.add(nodeId);
+    g.setNode(nodeId, { width: AFFECTED_NODE_WIDTH, height: AFFECTED_NODE_HEIGHT });
+  }
 
-    const isNew = !seen.has(nodeId);
+  // Add edges from closest changed file to affected node
+  for (const path of impactPaths) {
+    const targetId = toNodeId(path.component);
+    const sourceId = findClosestSource(path.component, changedFiles);
+    if (!sourceId) continue;
 
-    if (isNew) {
-      seen.add(nodeId);
-      const pos = NODE_POSITIONS[nodeId] || randomPosition(seen.size);
-      nodes.push(createNode(nodeId, path.dependencyType, pos, path.riskLevel));
-    }
+    g.setEdge(sourceId, targetId, {
+      riskLevel: path.riskLevel,
+      dependencyType: path.dependencyType,
+    });
+  }
 
-    if (isNew) {
-      const isImplicitDep =
-        path.dependencyType === "behavioral_contract" || path.dependencyType === "shared_state";
+  dagre.layout(g);
 
-      edges.push({
-        id: `e-${centerId}-${nodeId}`,
-        source: centerId,
-        target: nodeId,
-        type: "smoothstep",
-        animated: isImplicitDep,
-        style: {
-          stroke: isImplicitDep ? "#ef4444" : getEdgeColor(path.riskLevel),
-          strokeWidth: isImplicitDep ? 2.5 : 1.5,
-          strokeDasharray: isImplicitDep ? "8 4" : "none",
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: isImplicitDep ? "#ef4444" : getEdgeColor(path.riskLevel),
-        },
-        label: path.dependencyType.replace(/_/g, " "),
-        labelStyle: {
-          fill: "#e4e4e7",
-          fontSize: 10,
-          fontFamily: "Inter, sans-serif",
-        },
-        labelBgStyle: { fill: "#0a0a0b" },
-        labelBgPadding: [4, 2] as [number, number],
-      });
-    }
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+  const centerIds = new Set(changedFiles.map(toNodeId));
+
+  for (const nodeId of g.nodes()) {
+    const dagreNode = g.node(nodeId);
+    const isCenter = centerIds.has(nodeId);
+    const impactPath = isCenter ? null : impactPaths.find((p) => toNodeId(p.component) === nodeId);
+    const fullPath = isCenter
+      ? changedFiles.find((f) => toNodeId(f) === nodeId) || nodeId
+      : impactPath?.component || nodeId;
+    const serviceName = extractServiceName(fullPath);
+
+    nodes.push({
+      id: nodeId,
+      type: "impactNode",
+      position: {
+        x: dagreNode.x - (isCenter ? CENTER_NODE_WIDTH / 2 : AFFECTED_NODE_WIDTH / 2),
+        y: dagreNode.y - (isCenter ? CENTER_NODE_HEIGHT / 2 : AFFECTED_NODE_HEIGHT / 2),
+      },
+      data: {
+        label: nodeId,
+        fullPath,
+        serviceName,
+        isCenter,
+        dependencyType: isCenter ? "changed" : impactPath?.dependencyType || "unknown",
+        riskLevel: isCenter ? "low" : impactPath?.riskLevel || "low",
+      },
+    });
+  }
+
+  for (const edge of g.edges()) {
+    const impactPath = impactPaths.find(
+      (p) => toNodeId(p.component) === edge.w
+    );
+
+    edges.push({
+      id: `${edge.v}->${edge.w}`,
+      source: edge.v,
+      target: edge.w,
+      type: "smoothstep",
+      animated: true,
+      style: {
+        stroke: getEdgeColor(impactPath?.riskLevel || "low"),
+        strokeWidth: 1.5,
+        strokeDasharray: ["behavioral_contract", "shared_state"].includes(
+          impactPath?.dependencyType || ""
+        )
+          ? "6 4"
+          : "none",
+      },
+      label: impactPath?.dependencyType || "",
+    });
   }
 
   return { nodes, edges };
 }
 
-function createNode(
-  id: string,
-  dependencyType: string,
-  position: { x: number; y: number },
-  riskLevel?: string
-): Node {
-  const isImplicitDep =
-    dependencyType === "behavioral_contract" || dependencyType === "shared_state";
-
-  return {
-    id,
-    type: "impactNode",
-    position,
-    data: {
-      label: id,
-      dependencyType,
-      riskLevel: riskLevel || "low",
-      isImplicitDep,
-    },
-  };
+export function toNodeId(component: string): string {
+  return component
+    .replace(/^.*[/\\]/, "")
+    .replace(/\.[^.]*$/, "");
 }
 
-function getEdgeColor(riskLevel: string): string {
+function findClosestSource(
+  target: string,
+  changedFiles: string[]
+): string | null {
+  if (changedFiles.length === 0) return null;
+  if (changedFiles.length === 1) return toNodeId(changedFiles[0]);
+
+  const targetDir = target.split("/").slice(0, -1).join("/");
+  let best: string | null = null;
+  let bestScore = -1;
+
+  for (const file of changedFiles) {
+    const fileDir = file.split("/").slice(0, -1).join("/");
+    const score = sharedPrefixLength(targetDir, fileDir);
+    if (score > bestScore) {
+      bestScore = score;
+      best = file;
+    }
+  }
+
+  return best ? toNodeId(best) : toNodeId(changedFiles[0]);
+}
+
+function sharedPrefixLength(a: string, b: string): number {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+function extractServiceName(filePath: string): string {
+  const parts = filePath.split("/");
+  if (parts.length >= 2) {
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (["services", "components", "routes", "stores", "hooks", "lib", "src"].includes(parts[i])) {
+        return parts[i + 1] || "";
+      }
+    }
+  }
+  return "";
+}
+
+export function getEdgeColor(riskLevel: string): string {
   switch (riskLevel) {
-    case "high":
-      return "#ef4444";
-    case "medium":
-      return "#f59e0b";
-    default:
-      return "#2dd4bf";
+    case "high": return "#ef4444";
+    case "medium": return "#f59e0b";
+    case "low": return "#2dd4bf";
+    default: return "#52525b";
   }
 }
 
-function randomPosition(seed: number): { x: number; y: number } {
-  const angle = (seed * 137.508) % 360;
-  const radius = 150 + seed * 20;
-  const x = 400 + Math.cos((angle * Math.PI) / 180) * radius;
-  const y = 300 + Math.sin((angle * Math.PI) / 180) * radius;
-  return { x, y };
-}
-
-export function getRiskLabel(risk: string): string {
-  switch (risk) {
-    case "high":
-      return "High";
-    case "medium":
-      return "Medium";
-    default:
-      return "Low";
+export function getRiskColor(riskLevel: string): string {
+  switch (riskLevel) {
+    case "high": return "#ef4444";
+    case "medium": return "#f59e0b";
+    case "low": return "#2dd4bf";
+    default: return "#71717a";
   }
 }
 
-export function getRiskColor(risk: string): string {
-  switch (risk) {
-    case "high":
-      return "#ef4444";
-    case "medium":
-      return "#f59e0b";
-    default:
-      return "#2dd4bf";
+export function getRiskLabel(riskLevel: string): string {
+  switch (riskLevel) {
+    case "high": return "High Risk";
+    case "medium": return "Medium Risk";
+    case "low": return "Low Risk";
+    default: return "Unknown";
   }
 }

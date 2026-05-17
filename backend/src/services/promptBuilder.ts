@@ -2,8 +2,10 @@ import { RepoContext } from "../types";
 
 interface ChangeContext {
   diff: string;
-  changedFile: string;
-  changedFunction: string;
+  changedFiles: Array<{
+    filePath: string;
+    changedFunctions: string[];
+  }>;
   description: string;
 }
 
@@ -11,102 +13,112 @@ export function buildImpactAnalysisPrompt(
   change: ChangeContext,
   repoContext: RepoContext
 ): string {
-  // Build service and shared module descriptions for the prompt
-  const serviceDescriptions = repoContext.services
-    .map(
-      (s) =>
-        `  - ${s.name} (${s.path}): ${s.description}\n    Exports: [${s.exports.join(", ")}]\n    Dependencies: [${s.dependencies.join(", ")}]`
-    )
-    .join("\n");
+  // Filter out shared modules that are marked as deleted in the diff
+  const activeSharedModules = repoContext.sharedModules.filter(
+    (m) => !change.diff.includes(`--- a/${m.path}`) || !change.diff.includes("deleted file")
+  );
+  const fileDeps = new Map<string, string[]>();
+  const reverseDeps = new Map<string, string[]>();
 
-  const sharedModuleDescriptions = repoContext.sharedModules.length > 0
-    ? repoContext.sharedModules
+  for (const svc of repoContext.services) {
+    for (const dep of svc.dependencies) {
+      if (!fileDeps.has(svc.path)) fileDeps.set(svc.path, []);
+      fileDeps.get(svc.path)!.push(dep);
+      if (!reverseDeps.has(dep)) reverseDeps.set(dep, []);
+      reverseDeps.get(dep)!.push(svc.path);
+    }
+  }
+
+  // Build compact dependency summary
+  const depEntries: string[] = [];
+  for (const [file, deps] of fileDeps) {
+    const importedBy = reverseDeps.get(file) || [];
+    depEntries.push(
+      `  ${file}\n` +
+      `    → imports: [${deps.join(", ")}]\n` +
+      `    ← imported by: [${importedBy.join(", ")}]`
+    );
+  }
+  const depGraph = depEntries.join("\n") || "  (no dependencies detected)";
+
+  // Shared modules (cross-cutting concerns)
+  const sharedInfo = activeSharedModules.length > 0
+    ? activeSharedModules
         .map(
           (m) =>
-            `  - ${m.name} (${m.path}): ${m.description}\n    Consumed independently by: [${m.consumedBy.join(", ")}]`
+            `- **${m.path}** → consumed independently by: [${m.consumedBy.join(", ")}] (no import between them)`
         )
         .join("\n")
-    : "  (No shared modules detected)";
+    : "";
 
-  const hasSharedModules = repoContext.sharedModules.length > 0;
+  const hasShared = activeSharedModules.length > 0;
 
-  const implicitContractInstruction = hasSharedModules
-    ? `### Phase 3 — Behavioral Contracts (CRITICAL — DO NOT SKIP)
-Look at the Shared Modules section above. These modules are consumed independently by multiple services WITHOUT any import dependency between those services. Two services can read the same shared config, schema, or type definition without ever importing from each other. If the changed file alters a contract that a shared module defines, services consuming that module independently will break silently — no import analysis, linter, or dependency graph tool will catch this.
+  const implicitSection = hasShared
+    ? `### Phase 3 — Behavioral Contracts (CRITICAL)
+These files are consumed independently by multiple modules WITHOUT any import between them:
+${sharedInfo}
 
-For each shared module consumed by multiple services, determine if this change could break the contract for any consumer. Flag these as "behavioral_contract" dependencies. This discovery is the primary value of your analysis.
-
-When you find a behavioral contract, set the risk level to "high" and explain that the dependency is invisible to static analysis tools.`
+If the changed code alters a contract that any shared file defines (format, schema, types, config keys), the independent consumers will break silently. No linter or static analyzer catches this. Flag these as "behavioral_contract" with risk "high".`
     : `### Phase 3 — Behavioral Contracts
-Check if this change could create implicit contracts with code that has no direct import relationship. Look for configuration, type definitions, environment variables, or data formats that multiple independent modules might consume. If found, flag as "behavioral_contract". If none exist, skip this phase.`;
+Check if the change could break implicit contracts — configuration formats, type definitions, API signatures in files consumed by multiple modules without import relationships.`;
 
-  return `You are a code impact analysis engine performing a blast radius assessment. Analyze this code change across four dependency layers. Your most critical task is discovering IMPLICIT dependencies that no import graph would reveal.
+  const changedFilesList = change.changedFiles
+    .map((f) => `- **${f.filePath}** (functions: ${f.changedFunctions.join(", ") || "unknown"})`)
+    .join("\n");
 
-## Repository Architecture
+  return `Analyze the blast radius of this code change. Discover ALL files affected — directly, transitively, and implicitly.
 
-### Services (${repoContext.services.length} detected)
-${serviceDescriptions}
+**CRITICAL:** The dependency graph below is the SOLE source of truth for what files exist in this codebase. Ignore file paths or service names that appear ONLY in deleted diff content. Deleted files are removed — analyze impact of their removal on remaining code.
 
-### Shared Modules (${repoContext.sharedModules.length} detected)
-${sharedModuleDescriptions}
+${depGraph}
 
-## Code Change to Analyze
+${hasShared ? `## Shared Cross-Cutting Files\n${sharedInfo}\n` : ""}
 
-**File changed:** ${change.changedFile}
-**Function modified:** ${change.changedFunction}
-**Description:** ${change.description}
+## Change
 
-**Diff:**
-\`\`\`
+${changedFilesList}
+
+**Intent:** ${change.description}
+
+\`\`\`diff
 ${change.diff}
 \`\`\`
 
-## ANALYSIS INSTRUCTIONS
+## Phased Analysis
 
-Reason through these four phases. Do not skip phases.
+Run all 4 phases. Assess overall risk considering combined impact across all phases.
 
-### Phase 1 — Direct Callers
-Identify every file that directly imports or requires the changed file. Use the "Dependencies" lists above — if a service lists the changed file or its parent module as a dependency, examine it. Only include files with an explicit import/require relationship.
+### Phase 1 — Direct Dependents
+From the dependency graph, find every file that imports (→) any changed file. These will break immediately.
 
-### Phase 2 — Transitive Callers
-For each direct caller from Phase 1, trace the dependency chain further. Follow chains as deep as they go. A service that depends on a direct caller is a transitive caller.
+### Phase 2 — Transitive Dependents  
+Trace chains: if A imports B and B imports the changed file, A is a transitive dependent. Follow chains 2-3 levels.
 
-${implicitContractInstruction}
+${implicitSection}
 
 ### Phase 4 — Shared State
-Identify files that read shared configuration, types, or state that the changed function also touches. Check the "Consumed independently by" lists in shared modules. Files that share state with the changed code but have no import relationship are "shared_state" dependencies.
+Files that read the same configuration, types, or state as the changed code. Found via the "imported by" (←) relationship from shared files.
 
-## OUTPUT RULES
-
-1. Return ONLY valid JSON. No markdown fences, no explanations before or after.
-2. Every impact path must reference real files from the repository architecture above.
-3. If shared modules exist, the behavioral contract findings MUST be present.
-4. dependencyType MUST be one of: "direct_caller", "transitive_caller", "behavioral_contract", "shared_state"
-5. Risk level MUST be one of: "low", "medium", "high"
-6. Summary paragraphs must name specific services, files, and failure modes.
-
-## JSON SCHEMA
+## Output — JSON only, no markdown
 
 {
   "overallRisk": "low" | "medium" | "high",
   "affectedCount": <number>,
   "impactPaths": [
     {
-      "component": "<exact file name or path>",
+      "component": "<affected file path from the dependency graph>",
       "dependencyType": "direct_caller" | "transitive_caller" | "behavioral_contract" | "shared_state",
       "riskLevel": "low" | "medium" | "high",
-      "explanation": "<1-2 sentence impact description naming specific services>",
-      "remediation": "<specific actionable step>",
-      "affectedFile": "<path to affected file, or null>",
+      "explanation": "<concrete: what file, what breaks, why>",
+      "remediation": "<specific action>",
+      "affectedFile": "<file path>",
       "affectedLine": <number or null>
     }
   ],
   "summary": {
-    "whatChanged": "<detailed description of what the code change does>",
-    "whatIsAtRisk": "<services and business functions that could break>",
-    "whatToDo": "<prioritized, specific actions ordered by risk>"
+    "whatChanged": "<concrete description of the diff>",
+    "whatIsAtRisk": "<which files break and how>",
+    "whatToDo": "<prioritized steps, risk-ordered>"
   }
-}
-
-Begin. Return JSON only.`;
+}`;
 }

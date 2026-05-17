@@ -1,40 +1,51 @@
-import { motion } from "framer-motion";
-import { GraniteResponse } from "@/types";
+import { motion, AnimatePresence } from "framer-motion";
+import type { GraniteResponse } from "@/types";
 
-interface ImpactSummaryProps {
-  response: GraniteResponse | null;
+interface Props {
+  response: GraniteResponse;
 }
 
-export default function ImpactSummary({ response }: ImpactSummaryProps) {
+export default function ImpactSummary({ response }: Props) {
   if (!response?.summary) return null;
 
-  const { whatChanged, whatIsAtRisk, whatToDo } = response.summary;
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      className="absolute bottom-0 left-0 right-0 border-t border-white/5 bg-bg-primary/95 backdrop-blur-sm p-6"
-    >
-      {/* Three-panel impact summary overlay */}
-      <div className="grid grid-cols-3 gap-6">
-        <SummarySection title="What Changed" content={whatChanged} />
-        <SummarySection title="What Is At Risk" content={whatIsAtRisk} />
-        <SummarySection title="What To Do" content={whatToDo} />
-      </div>
-    </motion.div>
-  );
-}
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 w-full max-w-3xl"
+      >
+        <div className="bg-bg-primary border border-zinc-700 p-6 shadow-2xl flex flex-col gap-6">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+            <h3 className="font-semibold text-sm tracking-tight">Impact Summary</h3>
+            <div className="flex gap-4">
+              <div className="text-xs">
+                <span className="text-text-muted">Risk:</span>{" "}
+                <span className="font-mono font-bold uppercase">{response.overallRisk}</span>
+              </div>
+              <div className="text-xs">
+                <span className="text-text-muted">Affected:</span>{" "}
+                <span className="font-mono">{response.affectedCount}</span>
+              </div>
+            </div>
+          </div>
 
-function SummarySection({ title, content }: { title: string; content: string | string[] }) {
-  const text = Array.isArray(content) ? content.join(". ") : content;
-  return (
-    <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        {title}
-      </h3>
-      <p className="text-sm leading-relaxed text-zinc-300">{text}</p>
-    </div>
+          <div className="grid sm:grid-cols-3 gap-6">
+            <div>
+              <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">What Changed</h4>
+              <p className="text-sm text-text-secondary leading-relaxed">{response.summary.whatChanged}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Risk Surface</h4>
+              <p className="text-sm text-text-secondary leading-relaxed">{response.summary.whatIsAtRisk}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Remediation</h4>
+              <p className="text-sm text-text-secondary leading-relaxed">{response.summary.whatToDo}</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
