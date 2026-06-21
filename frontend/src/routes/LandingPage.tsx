@@ -14,10 +14,10 @@ export default function LandingPage() {
             <span className="font-semibold tracking-tight">ImpactTrace</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href="https://bob.ibm.com/" target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1.5 text-[#0f62fe] bg-[#0f62fe]/10 px-2.5 py-1 rounded-full font-medium border border-[#0f62fe]/20 hidden sm:flex hover:bg-[#0f62fe]/20 transition-colors">
+            <div className="text-xs flex items-center gap-1.5 text-zinc-400 bg-zinc-800/50 px-2.5 py-1 rounded-full font-medium border border-zinc-700/50 hidden sm:flex">
               <Robot size={14} weight="fill" />
-              Powered by IBM Bob IDE
-            </a>
+              ImpactTrace AI Engine
+            </div>
             <Link to="/dashboard" className="btn-primary text-sm rounded-sm">
               Launch App
             </Link>
@@ -90,10 +90,10 @@ export default function LandingPage() {
       <footer className="border-t border-zinc-800 py-8">
         <div className="mx-auto max-w-6xl px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-text-muted">
           <div>ImpactTrace &copy; 2026</div>
-          <a href="https://bob.ibm.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[#0f62fe] hover:underline">
+          <div className="flex items-center gap-1.5 text-zinc-500">
             <Robot size={14} weight="fill" />
-            Powered by IBM Bob IDE
-          </a>
+            AI Engine Active
+          </div>
         </div>
       </footer>
     </div>

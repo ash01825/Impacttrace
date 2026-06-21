@@ -4,7 +4,7 @@ import { scanRepository } from "../services/repoScanner";
 
 export const repoContextRouter = Router();
 
-const DEMO_REPO_PATH = path.resolve(__dirname, "../../../../demo-repo");
+const DEMO_REPO_PATH = path.resolve(__dirname, "../../../demo-repo");
 
 repoContextRouter.get("/repo-context", (req: Request, res: Response) => {
   try {

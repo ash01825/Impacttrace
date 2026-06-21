@@ -7,7 +7,7 @@ export function parseGraniteResponse(rawText: string): GraniteResponse {
     validateResponse(parsed);
     return parsed;
   } catch (jsonErr) {
-    // Granite often returns markdown instead of JSON — parse that
+    // AI often returns markdown instead of JSON — parse that
     process.stderr.write(`[parser] JSON parse failed, trying markdown. First 300: ${rawText.slice(0, 300)}\n`);
     try {
       const parsed = parseMarkdownReport(rawText);
@@ -106,7 +106,7 @@ function extractJSON(text: string): string {
 
   if (firstBrace === -1 || lastBrace === -1) {
     process.stderr.write(`[parser] No JSON in response. Raw: ${text.slice(0, 600)}\n`);
-    throw new GraniteParseError("No JSON object found in Granite response", text);
+    throw new GraniteParseError("No JSON object found in AI response", text);
   }
 
   return cleaned.slice(firstBrace, lastBrace + 1);
@@ -119,7 +119,7 @@ function validateResponse(response: GraniteResponse): void {
 
   if (!Array.isArray(response.impactPaths)) {
     throw new GraniteParseError(
-      "Granite response missing impactPaths array",
+      "AI response missing impactPaths array",
       JSON.stringify(response).slice(0, 500)
     );
   }
@@ -135,7 +135,7 @@ function validateResponse(response: GraniteResponse): void {
     };
   }
 
-  // Normalize summary fields — Granite sometimes returns arrays
+  // Normalize summary fields — AI sometimes returns arrays
   response.summary.whatChanged = normalizeSummaryField(response.summary.whatChanged);
   response.summary.whatIsAtRisk = normalizeSummaryField(response.summary.whatIsAtRisk);
   response.summary.whatToDo = normalizeSummaryField(response.summary.whatToDo);

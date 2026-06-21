@@ -1,228 +1,156 @@
-# ImpactTrace
-
-> **Know what breaks before you ship.** Pre-commit change intelligence — map the full blast radius of any code change in seconds.
-
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev/)
-[![Node](https://img.shields.io/badge/Node-23-green)](https://nodejs.org/)
-
----
-
-## What It Does
-
-ImpactTrace analyzes your codebase's dependency graph and uses AI to discover every file that would break from a proposed change — including **implicit dependencies** that no linter or static analysis tool can find.
-
-**Paste a git diff. See the blast radius. Ship with confidence.**
-
-### The Implicit Dependency Problem
-
-Two files can share a runtime contract without ever importing each other. For example, an auth service and a payment service might both read the same JSON schema. If you change the auth service's token format, the payment service silently rejects all tokens. No import chain connects them. No test catches it. No linter flags it.
-
-**ImpactTrace finds these invisible connections.**
+<div align="center">
+  <div style="font-family: monospace; font-size: 24px; font-weight: bold; background: #000; color: #fff; display: inline-block; padding: 4px 8px; margin-bottom: 16px;">
+    IT
+  </div>
+  <h1>ImpactTrace AI Engine</h1>
+  <p><strong>Know exactly what breaks before you commit.</strong></p>
+  <p>A sophisticated pre-commit change intelligence platform that maps the full blast radius of any proposed code change. By reading the entire repository context, ImpactTrace catches implicit behavioral contracts and shared state dependencies that traditional static analysis tools miss.</p>
+</div>
 
 ---
 
-## Architecture
+## 🧠 The Problem & Our Solution
 
+**The Problem:** Traditional linters and IDEs only understand *explicit* dependencies (e.g., `import X from Y`). If you change a generic token validation schema, your IDE tells you it's safe. But at runtime, a completely separate microservice that shares that schema will silently fail.
+
+**The Solution:** The **ImpactTrace AI Engine**. We built a hybrid architecture that combines deterministic static analysis (for guaranteed direct dependencies) with dynamic LLM reasoning (for implicit contracts and behavioral state).
+
+When you paste a Git diff, ImpactTrace:
+1. Clones and statically analyzes your entire repository.
+2. Builds a comprehensive dependency graph.
+3. Feeds the graph + the diff into the AI Engine.
+4. Streams back a live, visual blast radius map highlighting explicit **and implicit** breakages.
+
+---
+
+## 🏗 System Architecture
+
+ImpactTrace is built with a modern, decoupled architecture designed for high-speed streaming inference.
+
+```mermaid
+graph TB
+    subgraph "Developer Local Environment"
+        DEV[Developer Workflow<br/>Generates Git Diff]
+    end
+
+    subgraph "Frontend Engine (React + TypeScript)"
+        APP[App Core]
+        APP --> INPUT[Diff Parser & File Detector]
+        APP --> GRAPH[React Flow Engine<br/>Live Node Rendering]
+        APP --> DETAIL[AI Insight Panel<br/>Remediation Guidance]
+        APP --> STREAM[useAnalysisStream Hook]
+    end
+
+    subgraph "Backend Engine (Node + Express)"
+        API[Express SSE Server]
+        SCANNER[Repo Scanner<br/>AST & Import Tracing]
+        API --> SCANNER
+        PROMPT[Context Aggregator<br/>Prompt Construction]
+        API --> PROMPT
+        CLIENT[AI Streaming Client<br/>Retry & Fault Tolerance]
+        PROMPT --> CLIENT
+    end
+
+    subgraph "AI Intelligence Layer"
+        LLM[ImpactTrace AI Engine<br/>LLM Inference]
+    end
+
+    DEV -->|1. Submit Diff| INPUT
+    INPUT -->|2. POST /api/analyze| API
+    SCANNER -->|3. Build Repo Context| PROMPT
+    PROMPT -->|4. Request Inference| LLM
+    LLM -->|5. Stream Data (SSE)| CLIENT
+    CLIENT -->|6. Render Graph Nodes| STREAM
 ```
-┌──────────────────────────────────────────────────┐
-│                   IBM Bob IDE                     │
-│         Developer writes + triggers analysis       │
-└──────────────────────┬───────────────────────────┘
-                       │ change context (diff + intent)
-                       ▼
-┌──────────────────────────────────────────────────┐
-│                ImpactTrace Frontend               │
-│        React 18 • TypeScript • Tailwind           │
-│   ┌──────────┐  ┌────────────┐  ┌────────────┐   │
-│   │ Diff     │  │ Blast      │  │ Impact     │   │
-│   │ Input    │  │ Radius Map │  │ Summary    │   │
-│   └──────────┘  └────────────┘  └────────────┘   │
-└──────────────────────┬───────────────────────────┘
-                       │ SSE stream
-                       ▼
-┌──────────────────────────────────────────────────┐
-│                ImpactTrace Backend                │
-│       Express • TypeScript • Server-Sent Events    │
-│   ┌──────────┐  ┌────────────┐  ┌────────────┐   │
-│   │ Repo     │  │ Prompt     │  │ Response   │   │
-│   │ Scanner  │  │ Builder    │  │ Parser     │   │
-│   └──────────┘  └────────────┘  └────────────┘   │
-└──────────────────────┬───────────────────────────┘
-                       │ OpenRouter API (free tier)
-                       ▼
-┌──────────────────────────────────────────────────┐
-│        NVIDIA Nemotron Super 120B (free)          │
-│         1M context • Structured JSON output        │
-│      Discovers direct, transitive, behavioral      │
-│           contract, and shared-state impacts       │
-└──────────────────────────────────────────────────┘
-```
 
-### Analysis Pipeline
-
-1. **Repo Scanner** — Clones any GitHub repo (depth=1), parses all files for imports/exports, builds a dependency graph mapping every file to what it imports and what imports it
-2. **Prompt Builder** — Constructs a structured prompt containing the full dependency graph, changed files, and diff context
-3. **AI Inference** — Sends to NVIDIA Nemotron via OpenRouter (free tier). The model traces impact through 4 phases: direct callers → transitive callers → behavioral contracts → shared state
-4. **Streaming Response** — Results stream back via Server-Sent Events, nodes appear progressively on the blast radius map
-5. **Analysis History** — Every analysis saved to localStorage with timestamp, diff, and results for comparison
+### Key Architectural Highlights
+* **Streaming Server-Sent Events (SSE):** Because deep reasoning takes time, the backend streams tokens back to the frontend in real-time. The `useAnalysisStream` hook parses these chunks on the fly and renders nodes progressively.
+* **Fault-Tolerant AI Client:** The AI client includes built-in retry logic, exponential backoff, and strict JSON fallback parsing. If the LLM hallucinates markdown wrappers or malformed JSON, the `graniteParser.ts` sanitizes and repairs it before the UI breaks.
+* **Hybrid Context Resolution:** The backend `repoScanner.ts` uses static analysis to resolve local paths, map `index.ts` exports, and build a deterministic skeleton graph before asking the AI to find the behavioral links.
 
 ---
 
-## Tech Stack
+## ⚡ Core Features
 
-| Layer | Technology | Why |
-|---|---|---|
-| AI Inference | NVIDIA Nemotron Super 120B via OpenRouter | Free tier, 1M context window, follows JSON instructions reliably |
-| Frontend | React 18 + TypeScript + Vite | Fast builds, strict type safety, modern React features |
-| Graph Visualization | React Flow + Dagre | Production-grade node graph with auto-layout |
-| Animations | Framer Motion | Progressive node appearance, smooth transitions |
-| Styling | Tailwind CSS | Utility-first, dark theme optimized |
-| State | Zustand + localStorage | Lightweight state management with persistence |
-| Backend | Express + TypeScript | Simple, fast, well-typed API |
-| Git Operations | simple-git | Clone repos (depth=1) for scanning |
-| Package Manager | pnpm | Fast, disk-efficient monorepo support |
+- **Implicit Contract Detection:** Discovers shared schemas, configuration formats, and database models that connect microservices without explicit imports.
+- **Dynamic Blast Radius Maps:** Visualizes the impact using React Flow, with nodes color-coded by risk level and dependency type (Direct, Transitive, Behavioral, Shared State).
+- **Actionable Remediation:** Doesn't just tell you what breaks—tells you *how* to fix it before you commit.
+- **Automated Markdown Reports:** Generates clean, formatted PR-ready reports summarizing the AI's findings.
+- **Live Repo Scanning:** Supports cloning and indexing public GitHub repositories on the fly.
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-
 - Node.js 18+
 - pnpm 8+
-- OpenRouter API key (free — [get one here](https://openrouter.ai/keys))
+- OpenRouter API Key (Provides access to the LLM backend)
 
-### Setup
+### Installation
 
 ```bash
-# Clone the repo
-git clone https://github.com/ash01825/ImpactTrace
+# 1. Clone the repository
+git clone https://github.com/your-org/ImpactTrace.git
 cd ImpactTrace
 
-# Install dependencies
+# 2. Install dependencies (monorepo setup)
 pnpm install
 
-# Set up environment
+# 3. Configure Environment
 cp .env.example .env
-# Edit .env and paste your OpenRouter API key
+# Open .env and add your OPENROUTER_API_KEY
 ```
 
-### Run
+### Running the Application
+
+ImpactTrace uses a pnpm workspace to run both the frontend and backend concurrently.
 
 ```bash
-# Starts backend (port 3001) + frontend (port 5173)
+# Start both servers
 pnpm dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) — the landing page loads.
+- **Frontend Dashboard:** [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:3001](http://localhost:3001)
 
-### Usage Flow
+---
 
-1. **Import a repository** — Go to Dashboard, paste a GitHub URL, click Scan
-2. **Paste your diff** — Navigate to Analyze, paste a git diff into the textarea
-3. **Compute impact** — Click "Compute Impact", watch the analysis stream live
-4. **Explore results** — The blast radius map shows:
-   - **Blue nodes** — Changed files (center of the blast)
-   - **Colored nodes** — Affected files (teal=low, amber=medium, red=high risk)
-   - **Dashed edges** — Behavioral contracts (invisible dependencies)
-   - **Solid edges** — Direct/transitive import relationships
-5. **Export** — Download a Markdown report or copy to clipboard
+## 🧪 Running a Demo Scenario
 
-### Example Diff
+To see the true power of the AI Engine, try this demo:
+
+1. Navigate to **[http://localhost:5173/dashboard](http://localhost:5173/dashboard)**.
+2. Click **Load Demo Repository** under the Quick Start section.
+3. Once the context is indexed, click **Analyze**.
+4. Paste the following diff into the input panel:
 
 ```diff
-@@ -5,7 +5,7 @@
--function validateToken(tokenObj) {
-+function validateToken(tokenObj, config) {
+diff --git a/services/auth/tokenValidator.js b/services/auth/tokenValidator.js
+--- a/services/auth/tokenValidator.js
++++ b/services/auth/tokenValidator.js
+@@ -10,7 +10,7 @@
+-export function validateToken(tokenObj) {
++export function validateToken(tokenObj, strictMode = false) {
+     if (!tokenObj.exp) return false;
+     
+     // ... validation logic
 ```
-
-This single-line change to a function signature triggers analysis that discovers the behavioral contract between auth and payment services through a shared JSON schema — a dependency no linter would catch.
+5. Click **Compute Impact**.
+6. **Watch the magic:** You will see the AI Engine flag the Payment Service as high risk. Even though the Payment Service does not import `tokenValidator.js`, the AI understands they share an *implicit schema contract* that was just altered.
 
 ---
 
-## Why We Switched from IBM Watsonx
+## 🛠 Tech Stack
 
-We initially built ImpactTrace on **IBM watsonx.ai Granite (granite-3-8b-instruct)**. While functional, Granite had limitations:
-
-| Issue | Impact |
-|---|---|
-| Markdown output | Granite ignored JSON instructions and returned markdown, requiring a custom parser |
-| Output quality | Analysis often referenced files from deleted code rather than the actual dependency graph |
-| Token limits | 4K token limit restricted the dependency graph we could send |
-| Vendor lock-in | Required IBM Cloud account with active project |
-
-**The switch to NVIDIA Nemotron via OpenRouter solved all of these:**
-
-- **1M context window** — We send the full dependency graph with room to spare
-- **JSON adherence** — Nemotron follows output format instructions reliably
-- **Free tier** — Zero cost, no credit card required
-- **Model flexibility** — OpenRouter gives us access to dozens of free models; swap one line to change models
+- **Inference:** OpenRouter LLM API (Nemotron/Granite Models)
+- **Frontend UI:** React 18, Tailwind CSS, Framer Motion, Radix UI/Shadcn
+- **Graph Visualization:** React Flow, Dagre (Auto-layout)
+- **Backend API:** Node.js, Express, TypeScript, Server-Sent Events (SSE)
+- **Tooling:** Vite, pnpm Workspaces, ESLint
 
 ---
 
-## API Endpoints
+## 📄 License
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/analyze` | Submit diff for analysis, receives SSE stream |
-| `POST` | `/api/clone-and-scan` | Clone and scan a GitHub repo |
-| `POST` | `/api/scan-repo` | Scan a local filesystem path |
-| `GET` | `/api/health` | Health check |
-
-### SSE Event Format
-
-```
-event: phase
-data: {"phase":"indexing","label":"Scanning repository..."}
-
-event: phase
-data: {"phase":"identifying_direct","label":"Identifying direct dependencies"}
-
-event: impact_path
-data: {"component":"src/stores/connection-store.ts","dependencyType":"behavioral_contract","riskLevel":"high","explanation":"..."}
-
-event: complete
-data: {"overallRisk":"high","affectedCount":14,"summary":{...}}
-```
-
----
-
-## Project Structure
-
-```
-ImpactTrace/
-├── backend/                  # Express + TypeScript API
-│   └── src/
-│       ├── routes/           # API endpoints (analyze, scan, health)
-│       ├── services/         # AI client, prompt builder, repo scanner
-│       ├── parsers/          # Response parser (JSON + markdown fallback)
-│       └── types/            # Shared TypeScript types
-├── frontend/                 # React 18 + Vite
-│   └── src/
-│       ├── components/       # UI components
-│       │   ├── analysis/     # History, health dashboard, report export
-│       │   ├── analyze/      # Diff input, file list
-│       │   ├── graph/        # React Flow blast radius map
-│       │   ├── summary/      # Impact summary panel
-│       │   └── layout/       # App shell, navigation
-│       ├── hooks/            # SSE streaming hook
-│       ├── store/            # Zustand state + localStorage persistence
-│       └── routes/           # Landing, Dashboard, Analyze pages
-├── demo-repo/                # Example monorepo for testing
-├── .env.example              # Environment template
-└── README.md
-```
-
----
-
-## Powered by IBM Bob IDE
-
-ImpactTrace is built to integrate with **IBM Bob IDE** — the development environment that reads your entire repository, understands intent, and explains the logic behind every dependency. When a developer makes a change in Bob IDE, ImpactTrace receives full repository context including Bob's understanding of the change's intent, enabling deeper and more accurate impact analysis.
-
----
-
-## License
-
-MIT
+MIT License. See `LICENSE` for more information.

@@ -57,8 +57,8 @@ export default function NodeDetailPanel({ path, onClose }: Props) {
 
         {/* Explanation */}
         <div>
-          <div className="text-xs font-medium text-[#0f62fe] mb-2 uppercase tracking-wider flex items-center gap-1.5">
-            <Robot size={14} weight="fill" /> IBM Bob Analysis
+          <div className="text-xs font-medium text-emerald-500 mb-2 uppercase tracking-wider flex items-center gap-1.5">
+            <Robot size={14} weight="fill" /> AI Impact Analysis
           </div>
           <p className="text-sm leading-relaxed text-text-secondary">
             {path.explanation}

@@ -66,7 +66,7 @@ export function buildImpactAnalysisPrompt(
     .map((f) => `- **${f.filePath}** (functions: ${f.changedFunctions.join(", ") || "unknown"})`)
     .join("\n");
 
-  return `You are ImpactTrace, a codebase impact analysis engine. You analyze how code changes propagate through dependency graphs to find every file that could break — including implicit dependencies invisible to static analysis.
+  return `You are the ImpactTrace AI Engine, a pre-commit change intelligence platform. You analyze how code changes propagate through dependency graphs to find every file that could break — including implicit dependencies invisible to static analysis.
 
 ## CODEBASE DEPENDENCY GRAPH
 

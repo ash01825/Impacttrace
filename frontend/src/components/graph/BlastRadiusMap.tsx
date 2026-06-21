@@ -80,7 +80,7 @@ export default function BlastRadiusMap({
   );
 
   return (
-    <div className="h-full w-full rounded-lg border border-white/5 bg-bg-primary">
+    <div className="h-full w-full rounded-lg border border-white/5 bg-bg-primary animate-in fade-in zoom-in-95 duration-500 ease-out">
       <ReactFlow
         nodes={nodes}
         edges={edges}

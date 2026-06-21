@@ -48,10 +48,10 @@ export default function AppLayout() {
 
         {/* Minimal Footer Badge */}
         <div className="p-4 border-t border-zinc-800">
-          <a href="https://bob.ibm.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-text-muted px-2 py-1.5 bg-[#0f62fe]/10 text-[#0f62fe] border border-[#0f62fe]/20 rounded-sm font-medium hover:bg-[#0f62fe]/20 transition-colors">
-            <Robot size={16} weight="fill" />
-            Powered by IBM Bob IDE
-          </a>
+          <div className="flex items-center gap-2 text-xs text-text-muted px-2 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-sm font-medium">
+            <Robot size={16} weight="fill" className="text-zinc-400" />
+            AI Engine Active
+          </div>
         </div>
       </aside>
 

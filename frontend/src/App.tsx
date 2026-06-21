@@ -13,7 +13,7 @@ import ProgressIndicator from "./components/header/ProgressIndicator";
 import DiffInputPanel from "./components/analyze/DiffInputPanel";
 import ParsedFileList from "./components/analyze/ParsedFileList";
 import type { ImpactPath, GraniteResponse } from "./types";
-import { CircleNotch, Robot } from "@phosphor-icons/react";
+import { CircleNotch } from "@phosphor-icons/react";
 
 export default function App() {
   const { currentRepoContext, currentRepoName, addAnalysis } = useAnalysisStore();
@@ -132,9 +132,6 @@ export default function App() {
                 diff={diff}
               />
             )}
-            <a href="https://bob.ibm.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-[#0f62fe] bg-[#0f62fe]/10 border border-[#0f62fe]/20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm font-medium hover:bg-[#0f62fe]/20 transition-colors">
-              <Robot size={14} weight="fill" /> IBM Bob
-            </a>
           </div>
         </div>
 
